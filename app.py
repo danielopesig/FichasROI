@@ -1,63 +1,102 @@
-
 import streamlit as st
+import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Investidor de Fichas - Mini", layout="centered")
+st.set_page_config(page_title="Investidor de Fichas", layout="centered")
 
 st.title("🎯 WebApp Mini – Investidor de Fichas")
+st.markdown("Clique nos números conforme forem saindo (da esquerda para a direita – ordem cronológica):")
 
-# Entrada dos últimos 12 números
-numbers = st.text_input("Digite os 12 últimos números (da direita para a esquerda, separados por vírgula):")
+# Inicializa os números
+if "numeros" not in st.session_state:
+    st.session_state.numeros = []
 
-if numbers:
-    try:
-        nums = [int(n.strip()) for n in numbers.split(",") if n.strip().isdigit()]
-        if len(nums) >= 5:
-            ultimos_5 = nums[:5]
+# Botões de clique 0–36
+cols = st.columns(6)
+for i in range(37):
+    if cols[i % 6].button(str(i)):
+        if len(st.session_state.numeros) >= 12:
+            st.session_state.numeros.pop(0)
+        st.session_state.numeros.append(i)
 
-            # Mapeamento de alvos simplificado de exemplo (base real precisa ser substituída pela tabela do Leo)
-            tabela_alvos = {
-                0: [10, 20, 30],
-                1: [17, 7],
-                2: [22],
-                3: [33],
-                4: [21, 9],
-                5: [25, 15, 35],
-                6: [20, 17, 7],
-                7: [17, 20],
-                9: [19],
-                10: [20, 30],
-                15: [35, 9, 5],
-                17: [20, 7],
-                20: [17, 7],
-                22: [2],
-                25: [20, 22],
-                30: [0, 20],
-                33: [3]
-            }
+# Botões de ação
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("🔙 Desfazer último número"):
+        if st.session_state.numeros:
+            st.session_state.numeros.pop()
 
-            alvos_total = []
-            repeticoes = []
-            for n in ultimos_5:
-                alvos = tabela_alvos.get(n, [])
-                alvos_sem_repeticao = [a for a in alvos if a != n]
-                if n in alvos:
-                    repeticoes.append(n)
-                alvos_total.extend(alvos_sem_repeticao)
+with col2:
+    if st.button("🔄 Limpar tudo"):
+        st.session_state.numeros = []
 
-            # Contar força
-            from collections import Counter
-            contagem = Counter(alvos_total)
-            tendencias_fortes = [num for num, freq in contagem.items() if freq >= 2]
-            tendencias_fracas = [num for num, freq in contagem.items() if freq == 1]
+# Exibe histórico
+st.markdown("### 🔢 Últimos 12 números (mais antigo → mais recente):")
+st.write(" → ".join(map(str, st.session_state.numeros)))
 
-            st.subheader("🔍 Leitura da Mesa")
-            if repeticoes:
-                st.warning(f"🔁 Padrão de Repetição detectado nos números: {repeticoes}")
-            if tendencias_fortes:
-                st.success(f"🔥 Tendência forte nos alvos: {tendencias_fortes}")
-            if tendencias_fracas:
-                st.info(f"🧊 Tendências fracas isoladas: {tendencias_fracas}")
-        else:
-            st.info("Insira ao menos 5 números para análise.")
-    except Exception as e:
-        st.error(f"Erro ao processar números: {e}")
+# Últimos 5 para leitura estratégica
+ultimos_5 = st.session_state.numeros[-5:]
+
+def gerar_alerta(numeros):
+    if len(numeros) < 5:
+        return "🔎 Aguarde mais entradas para leitura do padrão."
+    repetidos = len(set(numeros)) < len(numeros)
+    if repetidos:
+        return "🔁 Padrão de Repetição DETECTADO – Atenção!"
+    return "🎯 Tendência detectada – veja alvos abaixo."
+
+st.markdown("### 📊 Leitura Estratégica Atual:")
+st.success(gerar_alerta(ultimos_5))
+
+# === RACE TRACK STYLE VISUAL === #
+
+# Mapeamento da roleta (ordem real estilo Evolution)
+roleta_evolution = [
+    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8,
+    23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+]
+
+# Função para calcular alvos chamados
+def alvos_por_numero(n):
+    # Cada número chama seus 4 vizinhos reais
+    idx = roleta_evolution.index(n)
+    vizinhos = []
+    for i in [-2, -1, 0, 1, 2]:
+        vizinhos.append(roleta_evolution[(idx + i) % len(roleta_evolution)])
+    return vizinhos
+
+# Contagem de chamadas por número
+contagem = {i: 0 for i in range(37)}
+for n in ultimos_5:
+    for alvo in alvos_por_numero(n):
+        contagem[alvo] += 1
+
+# Identificar alvos mais fortes
+mais_fortes = sorted(contagem.items(), key=lambda x: x[1], reverse=True)
+entrada_ideal = [num for num, qtd in mais_fortes if qtd >= 2][:2]
+
+# Exibir entrada recomendada
+if entrada_ideal:
+    st.markdown(f"### ✅ Entrada Ideal: {', '.join(map(str, entrada_ideal))} (alvos fortes 🔥)")
+else:
+    st.markdown("### ⚠️ Nenhum alvo forte claro no momento.")
+
+# Desenhar racetrack visual
+fig, ax = plt.subplots(figsize=(10, 2))
+ax.set_xlim(0, 37)
+ax.set_ylim(0, 1)
+ax.axis('off')
+
+for idx, n in enumerate(roleta_evolution):
+    cor = "lightgray"
+    emoji = ""
+    if contagem[n] >= 2:
+        cor = "#ff9999"  # quente
+        emoji = "🔥"
+    elif contagem[n] == 1:
+        cor = "#a0d8f0"  # frio
+        emoji = "🧊"
+    ax.add_patch(plt.Circle((idx, 0.5), 0.4, color=cor, ec='black'))
+    ax.text(idx, 0.5, f"{n}\n{emoji}", fontsize=8, ha='center', va='center')
+
+st.markdown("### 🧭 RaceTrack estilo Evolution:")
+st.pyplot(fig)
